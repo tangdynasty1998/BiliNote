@@ -22,6 +22,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse
 import httpx
 from app.enmus.task_status_enums import TaskStatus
+from app.models.model_config import ModelConfig
 
 # from app.services.downloader import download_raw_audio
 # from app.services.whisperer import transcribe_audio
@@ -34,6 +35,14 @@ class RecordRequest(BaseModel):
     platform: str
 
 
+class InlineModelConfig(BaseModel):
+    name: str
+    provider: str
+    api_key: str
+    base_url: str
+    model_name: str
+
+
 class VideoRequest(BaseModel):
     video_url: str
     platform: str
@@ -41,7 +50,8 @@ class VideoRequest(BaseModel):
     screenshot: Optional[bool] = False
     link: Optional[bool] = False
     model_name: str
-    provider_id: str
+    provider_id: Optional[str] = None
+    model_config: Optional[InlineModelConfig] = None
     task_id: Optional[str] = None
     format: Optional[list] = []
     style: str = None
@@ -75,12 +85,18 @@ def save_note_to_file(task_id: str, note):
 
 def run_note_task(task_id: str, video_url: str, platform: str, quality: DownloadQuality,
                   link: bool = False, screenshot: bool = False, model_name: str = None, provider_id: str = None,
+                  model_config: Optional[dict] = None,
                   _format: list = None, style: str = None, extras: str = None, video_understanding: bool = False,
                   video_interval=0, grid_size=[]
                   ):
 
-    if not model_name or not provider_id:
-        raise HTTPException(status_code=400, detail="请选择模型和提供者")
+    if not model_name:
+        raise HTTPException(status_code=400, detail="请选择模型")
+
+    if not provider_id and not model_config:
+        raise HTTPException(status_code=400, detail="请提供 provider_id 或 model_config")
+
+    parsed_model_config = ModelConfig(**model_config) if model_config else None
 
     note = NoteGenerator().generate(
         video_url=video_url,
@@ -89,6 +105,7 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
         task_id=task_id,
         model_name=model_name,
         provider_id=provider_id,
+        model_config=parsed_model_config,
         link=link,
         _format=_format,
         style=style,
@@ -152,7 +169,8 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
             task_id = str(uuid.uuid4())
 
         background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
-                                  data.screenshot, data.model_name, data.provider_id, data.format, data.style,
+                                  data.screenshot, data.model_name, data.provider_id,
+                                  data.model_config.model_dump() if data.model_config else None, data.format, data.style,
                                   data.extras, data.video_understanding, data.video_interval, data.grid_size)
         return R.success({"task_id": task_id})
     except Exception as e:

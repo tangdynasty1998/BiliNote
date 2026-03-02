@@ -82,6 +82,46 @@ pnpm dev
 
 访问：`http://localhost:5173`
 
+### 4. 纯后端调用（无需前端）
+
+如果你不想启动前端，也可以直接通过 HTTP 报文传参完成配置与生成笔记。核心思路是：
+- 通过已有接口写入 Cookie（可选）；
+- 在 `generate_note` 请求体中直接携带模型信息；
+- 轮询任务状态并获取结果。
+
+示例（使用请求体内模型配置，无需预先在前端页面里配置 provider）：
+
+```bash
+curl -X POST http://127.0.0.1:8483/api/generate_note \
+  -H "Content-Type: application/json" \
+  -d '{
+    "video_url": "https://www.bilibili.com/video/BV1xx411c7mD",
+    "platform": "bilibili",
+    "quality": "medium",
+    "model_name": "gpt-4o-mini",
+    "model_config": {
+      "name": "custom-openai",
+      "provider": "openai",
+      "api_key": "sk-xxxx",
+      "base_url": "https://api.openai.com/v1",
+      "model_name": "gpt-4o-mini"
+    },
+    "format": ["summary", "keypoints"],
+    "style": "简洁重点",
+    "extras": "关注可执行建议"
+  }'
+```
+
+返回 `task_id` 后可轮询：
+
+```bash
+curl http://127.0.0.1:8483/api/task_status/<task_id>
+```
+
+> 说明：`generate_note` 现在支持两种模式：
+> 1) 传 `provider_id`（兼容原有前后端流程）；
+> 2) 传 `model_config`（纯后端报文配置流程）。
+
 ## ⚙️ 依赖说明
 ### 🎬 FFmpeg
 本项目依赖 ffmpeg 用于音频处理与转码，必须安装：
