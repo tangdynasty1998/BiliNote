@@ -85,6 +85,7 @@ class NoteGenerator:
         task_id: Optional[str] = None,
         model_name: Optional[str] = None,
         provider_id: Optional[str] = None,
+        model_config: Optional[ModelConfig] = None,
         link: bool = False,
         screenshot: bool = False,
         _format: Optional[List[str]] = None,
@@ -125,7 +126,7 @@ class NoteGenerator:
             # 获取下载器与 GPT 实例
 
             downloader = self._get_downloader(platform)
-            gpt = self._get_gpt(model_name, provider_id)
+            gpt = self._get_gpt(model_name, provider_id, model_config)
 
             # 缓存文件路径
             audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
@@ -221,13 +222,23 @@ class NoteGenerator:
         logger.info(f"使用转写器：{self.transcriber_type}")
         return get_transcriber(transcriber_type=self.transcriber_type)
 
-    def _get_gpt(self, model_name: Optional[str], provider_id: Optional[str]) -> GPT:
+    def _get_gpt(
+        self,
+        model_name: Optional[str],
+        provider_id: Optional[str],
+        model_config: Optional[ModelConfig] = None,
+    ) -> GPT:
         """
         根据 provider_id 获取对应的 GPT 实例
         :param model_name: GPT 模型名称
         :param provider_id: 供应商 ID
+        :param model_config: 直接从请求传入的临时模型配置（用于纯后端调用场景）
         :return: GPT 实例
         """
+        if model_config:
+            logger.info("使用请求内模型配置创建 GPT 实例")
+            return GPTFactory().from_config(model_config)
+
         provider = ProviderService.get_provider_by_id(provider_id)
         if not provider:
             logger.error(f"[get_gpt] 未找到模型供应商: provider_id={provider_id}")
